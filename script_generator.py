@@ -114,7 +114,7 @@ def generate_script(products: list[dict], style: str, client: anthropic.Anthropi
     user_prompt = build_user_prompt(products, style)
     with client.messages.stream(
         model="claude-opus-4-7",
-        max_tokens=8192,
+        max_tokens=16000,
         system=[
             {
                 "type": "text",
@@ -132,7 +132,17 @@ def generate_script(products: list[dict], style: str, client: anthropic.Anthropi
         if raw.endswith("```"):
             raw = raw[:-3]
         raw = raw.strip()
-    return json.loads(raw)
+    # Find outermost JSON object in case of leading/trailing prose
+    start = raw.find("{")
+    end = raw.rfind("}") + 1
+    if start != -1 and end > start:
+        raw = raw[start:end]
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"JSON parse error: {e}", file=sys.stderr)
+        print("Raw response snippet:", raw[max(0, e.pos-100):e.pos+100], file=sys.stderr)
+        raise
 
 
 def build_tts_text(script_data: dict) -> str:
